@@ -127,11 +127,36 @@ header{position:sticky;top:0;z-index:20}
 .v151-details p{margin:0 0 9px;line-height:1.65}
 .v151-details ul{padding-left:22px;margin:6px 0 10px;line-height:1.7}
 .v151-details .v151-disclaimer{font-size:.82rem;color:#5b7275;border-top:1px solid #dce6e3;padding-top:12px;margin-top:14px}
+</style><style>
+/* V15.1 card action placement */
+#cards .v11-actions{margin:0 0 14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+#cards .v11-actions .v11-btn{min-height:42px;cursor:pointer}
+#cards .v11-actions .v11-fav{min-width:46px;font-size:1.15rem}
+</style><style>
+/* V15.1 date + accessible appearance switcher */
+.v151-header-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex-wrap:wrap}
+.v151-date{font-size:.72rem;line-height:1.3;font-weight:700;color:var(--muted);white-space:nowrap;text-align:right}
+.v151-theme-toggle{border:1px solid var(--line);border-radius:11px;background:var(--panel,#fff);color:var(--ink);padding:7px 10px;min-height:36px;font-size:.78rem;font-weight:750;white-space:nowrap}
+.v151-theme-toggle:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+@media(max-width:650px){.v151-header-tools{gap:5px}.v151-date{font-size:.65rem}.v151-theme-toggle{font-size:.72rem;padding:7px 8px}.nav{align-items:center}}
+html[data-theme="dark"]{color-scheme:dark;--ink:#e9f5f2;--teal:#66d7c5;--sand:#101e22;--muted:#b2c9c8;--line:#355357;--panel:#1b3035}
+html[data-theme="dark"] body{background:var(--sand);color:var(--ink)}
+html[data-theme="dark"] header,html[data-theme="dark"] .card,html[data-theme="dark"] .mini,html[data-theme="dark"] .search,html[data-theme="dark"] .v151-shortcut,html[data-theme="dark"] .v14-feature,html[data-theme="dark"] .v14-feature-card,html[data-theme="dark"] .lang,html[data-theme="dark"] .district-card,html[data-theme="dark"] dialog,html[data-theme="dark"] .v11-dialog,html[data-theme="dark"] .v13-card{background:#1b3035!important;color:#e9f5f2!important;border-color:#355357!important}
+html[data-theme="dark"] .panel,html[data-theme="dark"] .chip{background:#24443e!important;color:#e9f5f2!important}
+html[data-theme="dark"] .search input,html[data-theme="dark"] .search select,html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#172b30;color:#e9f5f2;border-color:#456167}
+html[data-theme="dark"] input::placeholder{color:#b1c6c5}
+html[data-theme="dark"] .v11-btn,html[data-theme="dark"] .v151-theme-toggle{background:#25464a;color:#e9f5f2;border-color:#517476}
+html[data-theme="dark"] .btn{background:#087d78;color:white}
+html[data-theme="dark"] .v151-details h3,html[data-theme="dark"] .textlink,html[data-theme="dark"] .credit a{color:#8de6d6}
+html[data-theme="dark"] .v151-details .v151-disclaimer{color:#b2c9c8;border-color:#355357}
+html[data-theme="dark"] .hero{color:white}
+html[data-theme="dark"] .hero .search{background:#1b3035!important}
+html[data-theme="dark"] a:focus-visible{outline:2px solid #8de6d6;outline-offset:2px}
 </style></head><body>
 <a class="skip" href="#destinations">Skip to destinations</a>
 <header><div class="wrap nav"><a class="brand" href="#home">🌴 Lanka <span>Travel Finder</span></a>
 <nav><a href="#destinations" data-i="navDest">Destinations</a><a href="#districts" data-i="navDistrict">Districts</a><a href="#planner" id="v12-nav">Trip Planner</a><a href="#directory" id="v13-nav">Hotels & Restaurants</a><a href="#stays" data-i="navStay">Stays & Dining</a><a href="#tips" data-i="navTips">Travel Tips</a><a href="#about" data-i="navAbout">About</a>
-<select id="lang" class="lang" aria-label="Language"><option value="en">English</option><option value="si">සිංහල</option><option value="ta">தமிழ்</option></select></nav></div></header>
+<select id="lang" class="lang" aria-label="Language"><option value="en">English</option><option value="si">සිංහල</option><option value="ta">தமிழ்</option></select></nav><div class="v151-header-tools"><time id="v151-today" class="v151-date" aria-label="Today's date"></time><button type="button" id="v151-theme-toggle" class="v151-theme-toggle" aria-label="Switch to dark mode" aria-pressed="false">🌙 Dark</button></div></div></header>
 <main><div class="hero" id="home"><div class="wrap"><div class="eyebrow" data-i="heroTag">YOUR ISLAND ADVENTURE STARTS HERE</div><h1 data-i="heroTitle">Find your next unforgettable Sri Lankan escape.</h1>
 <p data-i="heroText">Explore beautiful destinations, discover where to stay and eat, and plan your journey with practical local travel guides.</p>
 <form class="search" id="searchForm"><input id="query" aria-label="Search" placeholder="Try Ella, beaches, culture...">
@@ -386,7 +411,7 @@ const favBtn=document.createElement('button');favBtn.className='v11-btn v11-fav'
 favBtn.setAttribute('aria-label',(v11Favorites.has(v11Key(p))?'Remove favorite: ':'Save favorite: ')+p.name);
 favBtn.addEventListener('click',()=>{const key=v11Key(p);if(v11Favorites.has(key))v11Favorites.delete(key);else v11Favorites.add(key);v11Save();v11Labels();render();});
 actions.append(detailsBtn,favBtn);
-body.append(chip,h,desc,map,credit,actions);if(p.file){article.append(img)}else{const placeholder=document.createElement('div');placeholder.className='photo no-photo';placeholder.textContent='📍 '+p.district+' · Sri Lanka';article.append(placeholder)}article.append(body);$('cards').append(article);if(!p.file)enqueuePhoto(p,article);
+body.append(actions,chip,h,desc,map,credit);if(p.file){article.append(img)}else{const placeholder=document.createElement('div');placeholder.className='photo no-photo';placeholder.textContent='📍 '+p.district+' · Sri Lanka';article.append(placeholder)}article.append(body);$('cards').append(article);if(!p.file)enqueuePhoto(p,article);
 }
 updatePhotoAudit();$('count').textContent=filtered.length+' '+t[lang].results;$('empty').classList.toggle('hidden',filtered.length>0);
 }
@@ -440,10 +465,33 @@ $v('v12-print').addEventListener('click',()=>{if(!plan.length)create();window.pr
 </script><script>
 (function(){
 const translations={en:['EXPLORE AT A GLANCE',"Discover Sri Lanka’s beautiful places",'See destination photos and districts as soon as you open the website. Search and filters are still available below.','Browse all 125 places ↓','Search destinations ↑','View details','Google Maps'],si:['ශ්‍රී ලංකාව ගවේෂණය කරන්න','ශ්‍රී ලංකාවේ සුන්දර ස්ථාන සොයා බලන්න','වෙබ් අඩවිය විවෘත කළ සැණින් ඡායාරූප සහ දිස්ත්‍රික්ක බලන්න. පහළින් සෙවීමත් කළ හැක.','ස්ථාන 125ම බලන්න ↓','ස්ථාන සොයන්න ↑','විස්තර බලන්න','Google Maps'],ta:['இலங்கையை ஆராயுங்கள்','இலங்கையின் அழகிய இடங்களைக் கண்டறியுங்கள்','தளத்தைத் திறந்தவுடன் இடங்களின் படங்களையும் மாவட்டங்களையும் காணலாம். கீழே தேடலும் வடிகட்டிகளும் உள்ளன.','125 இடங்களையும் காண்க ↓','இடங்களைத் தேடுங்கள் ↑','விவரங்களைக் காண்க','Google Maps']};
-const featureNames=['Sigiriya Rock Fortress','Nine Arch Bridge','Temple of the Tooth','Mirissa Beach','Nallur Kandaswamy Kovil','Ruwanwelisaya'];
+// Rotate six featured destinations across the full catalog, without repeating within a set.
+const featureFallback=['Sigiriya Rock Fortress','Nine Arch Bridge','Temple of the Tooth','Mirissa Beach','Nallur Kandaswamy Kovil','Ruwanwelisaya'];
+let featureNames=featureFallback.slice();
+let featureRotation=0;
+function rotateFeatured(){
+ if(typeof places==='undefined')return;
+ const pool=places.filter(p=>p.file&&p.name);
+ if(!pool.length)return;
+ // Shuffle fresh photo-ready destinations, preferring locations not currently shown.
+ const fresh=pool.filter(p=>!featureNames.includes(p.name));
+ const source=fresh.length>=6?fresh:pool;
+ const shuffled=source.slice();
+ for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
+ featureNames=shuffled.slice(0,6).map(p=>p.name);
+ featureRotation++;
+ update();
+}
+
 const sourcePhoto=file=>'https://commons.wikimedia.org/wiki/Special:FilePath/'+encodeURIComponent(file)+'?width=600';
 function update(){const lang=document.getElementById('lang')?.value||'en',t=translations[lang]||translations.en;['v14-feature-tag','v14-feature-title','v14-feature-intro','v14-feature-more','v14-feature-search'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.textContent=t[i]});const root=document.getElementById('v14-feature-grid');if(!root||typeof places==='undefined')return;root.replaceChildren();for(const name of featureNames){const p=places.find(x=>x.name===name);if(!p||!p.file)continue;const card=document.createElement('article');card.className='v14-feature';const img=document.createElement('img');img.src=sourcePhoto(p.file);img.alt=p.name+', Sri Lanka';img.loading='eager';img.decoding='async';img.referrerPolicy='no-referrer';const body=document.createElement('div');body.className='v14-feature-body';const title=document.createElement('h3');title.textContent=p.name;const district=document.createElement('p');district.textContent='📍 '+p.district+', Sri Lanka';const details=document.createElement('a');details.href='#destinations';details.textContent=t[5];details.addEventListener('click',()=>{document.getElementById('query').value=p.name;document.getElementById('districtFilter').value='all';document.getElementById('category').value='all';document.getElementById('query').dispatchEvent(new Event('input',{bubbles:true}))});const maps=document.createElement('a');maps.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.name+', '+p.district+', Sri Lanka');maps.target='_blank';maps.rel='noopener noreferrer';maps.textContent='📍 '+t[6];body.append(title,district,details,maps);card.append(img,body);root.append(card)}}
-document.getElementById('lang')?.addEventListener('change',update);update();
+document.getElementById('lang')?.addEventListener('change',update);
+update();
+rotateFeatured();
+// Refresh the six featured cards every 45 seconds while the page is visible.
+setInterval(()=>{if(!document.hidden)rotateFeatured()},45000);
+// When photo lookup fills more image files, include those destinations in the rotation.
+setTimeout(rotateFeatured,12000);
 })();
 </script><script>
 (function(){
@@ -465,5 +513,22 @@ const labels={
 };
 function update(){const lang=document.getElementById('lang')?.value||'en';document.querySelectorAll('[data-shortcut]').forEach(el=>{el.textContent=(labels[lang]||labels.en)[el.dataset.shortcut]})}
 document.getElementById('lang')?.addEventListener('change',update);update();
+})();
+</script><script>
+(function(){
+ const root=document.documentElement;
+ const button=document.getElementById('v151-theme-toggle');
+ const date=document.getElementById('v151-today');
+ const lang=document.getElementById('lang');
+ const strings={en:{light:'☀️ Light',dark:'🌙 Dark',toLight:'Switch to light mode',toDark:'Switch to dark mode'},si:{light:'☀️ ලයිට්',dark:'🌙 ඩාර්ක්',toLight:'ලයිට් තේමාවට මාරුවන්න',toDark:'ඩාර්ක් තේමාවට මාරුවන්න'},ta:{light:'☀️ ஒளி',dark:'🌙 இருள்',toLight:'ஒளி தோற்றத்திற்கு மாற்று',toDark:'இருண்ட தோற்றத்திற்கு மாற்று'}};
+ let theme='light';
+ try{const saved=localStorage.getItem('ltf-theme');if(saved==='dark'||saved==='light')theme=saved;else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)theme='dark'}catch(e){}
+ function updateTheme(){root.dataset.theme=theme;const t=strings[lang?.value]||strings.en;button.textContent=theme==='dark'?t.light:t.dark;button.setAttribute('aria-label',theme==='dark'?t.toLight:t.toDark);button.setAttribute('aria-pressed',String(theme==='dark'))}
+ function updateDate(){const locale=lang?.value==='si'?'si-LK':lang?.value==='ta'?'ta-LK':'en-LK';const now=new Date();date.dateTime=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');date.textContent=new Intl.DateTimeFormat(locale,{weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(now)}
+ button.addEventListener('click',()=>{theme=theme==='dark'?'light':'dark';try{localStorage.setItem('ltf-theme',theme)}catch(e){}updateTheme()});
+ lang?.addEventListener('change',()=>{updateTheme();updateDate()});
+ updateTheme();updateDate();
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateDate()});
+ setInterval(updateDate,60000);
 })();
 </script></body></html>
