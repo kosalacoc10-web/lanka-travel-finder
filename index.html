@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Explore all 25 districts of Sri Lanka, authentic destination photos, travel maps and bilingual guides.">
-<title>Lanka Travel Finder V7 | Discover Sri Lanka</title><style>
+<title>Lanka Travel Finder V8 | Discover Sri Lanka</title><style>
 :root{--ink:#163c40;--teal:#087d78;--sand:#f7f5ef;--muted:#5b7275;--line:#dce6e3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:var(--sand);color:var(--ink)}
 a{color:inherit}button,input,select{font:inherit}button{cursor:pointer}.wrap{max-width:1140px;margin:auto;padding:0 22px}
@@ -46,7 +46,11 @@ footer a{color:white}.skip{position:absolute;left:-9999px}.skip:focus{left:10px;
 <button class="btn" data-i="searchBtn">Explore places</button></form></div></div>
 <section id="destinations"><div class="wrap"><div class="eyebrow" data-i="discover">DISCOVER THE ISLAND</div><h2 data-i="destTitle">Popular destinations</h2>
 <p class="intro" data-i="destIntro">Explore 125 places. Photos are loaded from Wikimedia Commons where a likely match is available; verify each photo using its source link.</p>
-<p id="count" class="note" aria-live="polite"></p><div class="grid" id="cards"></div>
+<div id="photoAudit" class="mini" style="margin:14px 0;padding:16px;border:1px solid #bdd8ce;border-radius:12px;background:#f0f8f5" aria-live="polite">
+<strong id="photoAuditStatus">Checking destination photos…</strong><p id="photoAuditDetail" style="margin:7px 0">Photo suggestions load in the background. Results are not location-verified.</p>
+<button type="button" id="missingOnly" class="btn" style="margin-top:7px">Show places without photos</button>
+<button type="button" id="copyMissing" class="btn" style="margin-top:7px;background:#356d6d">Copy missing place names</button>
+</div><p id="count" class="note" aria-live="polite"></p><div class="grid" id="cards"></div>
 <div id="empty" class="mini hidden" data-i="noResults">No matching destinations. Try a different search.</div></div></section>
 <section id="districts" style="background:#e5f1ed"><div class="wrap"><div class="eyebrow" data-i="districtTag">EXPLORE BY DISTRICT</div>
 <h2 data-i="districtTitle">All 25 districts of Sri Lanka</h2><p class="intro" data-i="districtIntro">Choose a district to filter the destinations currently listed. 125 destinations across 25 districts. Photos are sourced from Wikimedia Commons when a likely match is found; some places may still have no photo.</p>
@@ -78,6 +82,20 @@ function sourceUrl(file){return 'https://commons.wikimedia.org/wiki/File:'+encod
 function imageUrl(file){return 'https://commons.wikimedia.org/wiki/Special:FilePath/'+encodeURIComponent(file).replace(/%20/g,'_')+'?width=900'}
 // V6: Wikimedia Commons photo suggestions. These are search results, not human-verified location photos.
 const photoCache=new Map();
+let missingOnly=false;
+function updatePhotoAudit(){
+ const withFiles=places.filter(p=>p.file).length;
+ const pending=places.filter(p=>!p.file&&!photoCache.has(p.district+'|'+p.name)).length;
+ const found=[...photoCache.values()].filter(Boolean).length;
+ const missing=[...photoCache.values()].filter(v=>v===null).length;
+ const si=lang==='si';
+ $('photoAuditStatus').textContent=si?`ඡායාරූප: ${withFiles+found} හමු විය · ${missing} නැත · ${pending} පරීක්ෂා වෙමින්`:`Photos: ${withFiles+found} found · ${missing} missing · ${pending} still checking`;
+ $('photoAuditDetail').textContent=si?'මේවා Wikimedia Commons වෙතින් ලැබෙන යෝජනා පමණි. ස්ථානයට ගැළපෙන බව තහවුරු කරන්න.':'Commons results are suggestions, not verified destination photos. Wait until checking finishes for a complete missing list.';
+ $('missingOnly').textContent=missingOnly?(si?'සියලු ස්ථාන පෙන්වන්න':'Show all places'):(si?'ඡායාරූප නැති ස්ථාන පෙන්වන්න':'Show places without photos');
+ $('copyMissing').textContent=si?'ඡායාරූප නැති ස්ථාන නම් Copy කරන්න':'Copy missing place names';
+}
+function missingPlaces(){return places.filter(p=>!p.file&&photoCache.has(p.district+'|'+p.name)&&photoCache.get(p.district+'|'+p.name)===null)}
+
 
 const photoQueue=[];let activePhotoRequests=0;
 function commonWords(s){return s.toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(x=>x.length>3&&!['sri','lanka','national','park','temple','beach','falls','fort','lake','viewpoint','museum','reserve','vihara','vihara','district'].includes(x));}
@@ -112,12 +130,12 @@ async function lookupCommons(p){
 function enqueuePhoto(p,article){
  const key=p.district+'|'+p.name;
  if(photoCache.has(key)){showSuggestedPhoto(p,article,photoCache.get(key));return;}
- photoQueue.push({p,article,key});pumpPhotos();
+ if(!photoQueue.some(item=>item.key===key))photoQueue.push({p,article,key});pumpPhotos();
 }
 function pumpPhotos(){
  while(activePhotoRequests<3&&photoQueue.length){
   const {p,article,key}=photoQueue.shift();activePhotoRequests++;
-  lookupCommons(p).then(result=>{photoCache.set(key,result);showSuggestedPhoto(p,article,result)}).catch(()=>{}).finally(()=>{activePhotoRequests--;pumpPhotos()});
+  lookupCommons(p).then(result=>{photoCache.set(key,result);showSuggestedPhoto(p,article,result);updatePhotoAudit();if(missingOnly)render()}).catch(()=>{}).finally(()=>{activePhotoRequests--;pumpPhotos()});
  }
 }
 function showSuggestedPhoto(p,article,result){
@@ -130,7 +148,7 @@ function showSuggestedPhoto(p,article,result){
 }
 function render(){
 const q=$('query').value.trim().toLocaleLowerCase(),cat=$('category').value,dist=$('districtFilter').value;
-const filtered=places.filter(p=>(dist==='all'||p.district===dist)&&(cat==='all'||p.cat===cat)&&(!q||(p.name+' '+p.si+' '+p.district+' '+p.enDesc+' '+p.siDesc).toLocaleLowerCase().includes(q)));
+const filtered=places.filter(p=>(!missingOnly||missingPlaces().includes(p))&&(dist==='all'||p.district===dist)&&(cat==='all'||p.cat===cat)&&(!q||(p.name+' '+p.si+' '+p.district+' '+p.enDesc+' '+p.siDesc).toLocaleLowerCase().includes(q)));
 $('cards').replaceChildren();
 for(const p of filtered){
 const article=document.createElement('article');article.className='card';
@@ -144,7 +162,7 @@ const credit=document.createElement('div');credit.className='credit';if(p.file)c
 const source=document.createElement('a');source.href=sourceUrl(p.file);source.target='_blank';source.rel='noopener noreferrer';source.textContent='Wikimedia Commons ↗';if(p.file){credit.append(source)}else{const photoSearch=document.createElement('a');photoSearch.href='https://commons.wikimedia.org/w/index.php?search='+encodeURIComponent(p.name+' Sri Lanka')+'&title=Special:MediaSearch&type=image';photoSearch.target='_blank';photoSearch.rel='noopener noreferrer';photoSearch.textContent=lang==='si'?'මෙම ස්ථානයේ ඡායාරූප සොයන්න ↗':'Find photos of this place ↗';credit.append(photoSearch)}
 body.append(chip,h,desc,map,credit);if(p.file){article.append(img)}else{const placeholder=document.createElement('div');placeholder.className='photo no-photo';placeholder.textContent='📍 '+p.district+' · Sri Lanka';article.append(placeholder)}article.append(body);$('cards').append(article);if(!p.file)enqueuePhoto(p,article);
 }
-$('count').textContent=filtered.length+' '+t[lang].results;$('empty').classList.toggle('hidden',filtered.length>0);
+updatePhotoAudit();$('count').textContent=filtered.length+' '+t[lang].results;$('empty').classList.toggle('hidden',filtered.length>0);
 }
 function renderDistricts(){
 const selected=$('districtFilter').value,select=$('districtFilter'),grid=$('districtCards');
@@ -162,5 +180,7 @@ select.value=selected;
 function translate(){lang=$('lang').value;document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(el=>{if(t[lang][el.dataset.i])el.textContent=t[lang][el.dataset.i]});$('query').placeholder=lang==='si'?'ඇල්ල, වෙරළ, සංස්කෘතිය...':'Try Ella, beaches, culture...';renderDistricts();render()}
 $('lang').addEventListener('change',translate);$('query').addEventListener('input',render);$('category').addEventListener('change',render);$('districtFilter').addEventListener('change',render);
 $('searchForm').addEventListener('submit',e=>{e.preventDefault();render();$('destinations').scrollIntoView({behavior:'smooth'})});
+$('missingOnly').addEventListener('click',()=>{missingOnly=!missingOnly;render();$('destinations').scrollIntoView({behavior:'smooth'});});
+$('copyMissing').addEventListener('click',async()=>{const names=missingPlaces().map(p=>p.name+' — '+p.district).join('\n');if(!names){alert(lang==='si'?'තවම නැති ඡායාරූප හඳුනාගෙන නැත.':'No missing photos identified yet.');return;}try{await navigator.clipboard.writeText(names);alert(lang==='si'?'ස්ථාන නම් Copy කළා.':'Missing place names copied.')}catch(e){prompt('Copy missing place names:',names)}});
 $('year').textContent=new Date().getFullYear();translate();
 </script></body></html>
