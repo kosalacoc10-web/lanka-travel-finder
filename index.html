@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Explore all 25 districts of Sri Lanka, authentic destination photos, travel maps and bilingual guides.">
-<title>Lanka Travel Finder V9 | Discover Sri Lanka</title><style>
+<title>Lanka Travel Finder V10 | Discover Sri Lanka</title><style>
 :root{--ink:#163c40;--teal:#087d78;--sand:#f7f5ef;--muted:#5b7275;--line:#dce6e3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:var(--sand);color:var(--ink)}
 a{color:inherit}button,input,select{font:inherit}button{cursor:pointer}.wrap{max-width:1140px;margin:auto;padding:0 22px}
@@ -136,6 +136,26 @@ const photoAliases={
  'Kandasamy Kovil Vavuniya':['Vavuniya Kandasamy temple','Kandasamy Kovil Vavuniya'],
  'Iratperiyakulam Tank':['Iratperiyakulam reservoir','Iratperiyakulam lake']
 };
+// V10: Additional Wikipedia article thumbnail fallback for locations with no Commons match.
+// Article title must share a distinctive location term; suggestions are not verified.
+async function lookupWikipedia(p){
+ const names=[p.name,...(photoAliases[p.name]||[])];
+ const queries=[...new Set(names.flatMap(n=>[`${n} Sri Lanka`,`${n} ${p.district}`]))];
+ for(const q of queries){
+  try{
+   const params=new URLSearchParams({action:'query',generator:'search',gsrsearch:q,gsrlimit:'8',prop:'pageimages|info',piprop:'thumbnail',pithumbsize:'850',inprop:'url',format:'json',origin:'*'});
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),9000);
+   let response;try{response=await fetch('https://en.wikipedia.org/w/api.php?'+params,{signal:controller.signal})}finally{clearTimeout(timer)}
+   if(!response.ok)continue;
+   const data=await response.json();
+   const acceptable=[...new Set(names.flatMap(commonWords))];
+   const candidates=Object.values(data.query?.pages||{}).filter(x=>x.thumbnail?.source&&acceptable.some(w=>x.title.toLowerCase().includes(w)));
+   const match=candidates.find(x=>!/(disambiguation|list of|district|province)/i.test(x.title));
+   if(match)return {url:match.thumbnail.source,source:match.fullurl||'https://en.wikipedia.org/wiki/'+encodeURIComponent(match.title.replace(/ /g,'_')),artist:'Wikipedia article thumbnail',license:'Check source license'};
+  }catch(e){/* Keep placeholder when no valid result. */}
+ }
+ return null;
+}
 async function lookupCommons(p){
  const names=[p.name,...(photoAliases[p.name]||[])];
  const queries=[...new Set(names.flatMap(n=>[`"${n}" Sri Lanka`,`${n} ${p.district}`]))];
@@ -155,7 +175,7 @@ async function lookupCommons(p){
    return {url:info.thumburl,source:info.descriptionurl,artist:clean(meta.Artist?.value),license:clean(meta.LicenseShortName?.value)};
   }catch(e){/* Network failures leave a placeholder. */}
  }
- return null;
+ return await lookupWikipedia(p);
 }
 function enqueuePhoto(p,article){
  const key=p.district+'|'+p.name;
