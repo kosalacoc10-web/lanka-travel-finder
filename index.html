@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Explore all 25 districts of Sri Lanka, authentic destination photos, travel maps and bilingual guides.">
-<title>Lanka Travel Finder V10 | Discover Sri Lanka</title><style>
+<title>Lanka Travel Finder V11 | Discover Sri Lanka</title><style>
 :root{--ink:#163c40;--teal:#087d78;--sand:#f7f5ef;--muted:#5b7275;--line:#dce6e3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:var(--sand);color:var(--ink)}
 a{color:inherit}button,input,select{font:inherit}button{cursor:pointer}.wrap{max-width:1140px;margin:auto;padding:0 22px}
@@ -33,7 +33,21 @@ section{padding:60px 0}h2{font-size:clamp(1.8rem,4vw,2.5rem);margin:8px 0 12px}p
 footer a{color:white}.skip{position:absolute;left:-9999px}.skip:focus{left:10px;top:10px;background:white;color:black;padding:12px;z-index:10}
 @media(max-width:850px){.search{flex-direction:column}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.columns{grid-template-columns:1fr}}
 @media(max-width:560px){.grid{grid-template-columns:1fr}.wrap{padding:0 16px}section{padding:42px 0}.hero{min-height:560px}.photo{height:220px}nav{gap:10px}nav a{font-size:.82rem}.panel{padding:20px}}
-</style></head><body>
+</style>
+<style>
+.v11-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+.v11-btn{border:1px solid #bdd5cf;border-radius:10px;background:#fff;color:#087d78;padding:9px 12px;font-weight:700}
+.v11-btn:hover,.v11-btn:focus-visible{background:#e5f1ed}
+.v11-fav[aria-pressed="true"]{background:#fff0f1;color:#a32745;border-color:#efbdc8}
+#v11-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 20px}
+#v11-dialog{border:0;border-radius:18px;padding:0;width:min(94vw,610px);max-height:88vh;overflow:auto;box-shadow:0 20px 70px #0005;background:white;color:#163c40}
+#v11-dialog::backdrop{background:#081f25a8}
+.v11-modal-body{padding:22px}
+.v11-modal-photo{width:100%;max-height:270px;object-fit:cover;border-radius:12px}
+.v11-close{float:right;border:0;background:#e5f1ed;border-radius:10px;padding:8px 13px}
+.v11-meta{color:#5b7275;font-size:14px}
+</style>
+</head><body>
 <a class="skip" href="#destinations">Skip to destinations</a>
 <header><div class="wrap nav"><a class="brand" href="#home">🌴 Lanka <span>Travel Finder</span></a>
 <nav><a href="#destinations" data-i="navDest">Destinations</a><a href="#districts" data-i="navDistrict">Districts</a><a href="#stays" data-i="navStay">Stays & Dining</a><a href="#tips" data-i="navTips">Travel Tips</a><a href="#about" data-i="navAbout">About</a>
@@ -50,7 +64,8 @@ footer a{color:white}.skip{position:absolute;left:-9999px}.skip:focus{left:10px;
 <strong id="photoAuditStatus">Checking destination photos…</strong><p id="photoAuditDetail" style="margin:7px 0">Photo suggestions load in the background. Results are not location-verified.</p>
 <button type="button" id="missingOnly" class="btn" style="margin-top:7px">Show places without photos</button>
 <button type="button" id="copyMissing" class="btn" style="margin-top:7px;background:#356d6d">Copy missing place names</button>
-</div><p id="count" class="note" aria-live="polite"></p><div class="grid" id="cards"></div>
+</div><p id="count" class="note" aria-live="polite"></p><div id="v11-toolbar"><button id="v11-showfav" class="v11-btn" type="button" aria-pressed="false">♡ Show favorites (0)</button><span id="v11-favhint" class="v11-meta">Save places you want to visit. Favorites stay on this device.</span></div>
+<div class="grid" id="cards"></div>
 <div id="empty" class="mini hidden" data-i="noResults">No matching destinations. Try a different search.</div></div></section>
 <section id="districts" style="background:#e5f1ed"><div class="wrap"><div class="eyebrow" data-i="districtTag">EXPLORE BY DISTRICT</div>
 <h2 data-i="districtTitle">All 25 districts of Sri Lanka</h2><p class="intro" data-i="districtIntro">Choose a district to filter the destinations currently listed. 125 destinations across 25 districts. Photos are sourced from Wikimedia Commons when a likely match is found; some places may still have no photo.</p>
@@ -196,9 +211,47 @@ function showSuggestedPhoto(p,article,result){
  img.src=result.url;placeholder.style.display='none';placeholder.before(img);
  const credit=article.querySelector('.credit');if(credit){credit.replaceChildren();const a=document.createElement('a');a.href=result.source;a.target='_blank';a.rel='noopener noreferrer';a.textContent=(lang==='si'?'ඡායාරූප මූලාශ්‍රය / පරීක්ෂා කරන්න ↗':'Suggested photo / verify source ↗');credit.append(a);if(result.license)credit.append(' · '+result.license);if(result.artist)credit.append(' · '+result.artist);}
 }
+
+// V11: favorites are stored locally in this browser, not in an account.
+const v11StorageKey='lanka-travel-finder-favorites-v11';
+let v11Favorites=new Set();
+try{const saved=JSON.parse(localStorage.getItem(v11StorageKey)||'[]');if(Array.isArray(saved))v11Favorites=new Set(saved.filter(x=>typeof x==='string'));}catch(e){}
+let v11OnlyFavorites=false;
+const v11Key=p=>p.name+'|'+p.district;
+function v11Save(){try{localStorage.setItem(v11StorageKey,JSON.stringify([...v11Favorites]));}catch(e){}}
+function v11Labels(){
+ const si=lang==='si',btn=$('v11-showfav');
+ btn.textContent=(v11OnlyFavorites?(si?'♥ සියලු ස්ථාන පෙන්වන්න':'♥ Show all places'):(si?'♡ ප්‍රියතම ස්ථාන':'♡ Show favorites'))+' ('+v11Favorites.size+')';
+ btn.setAttribute('aria-pressed',String(v11OnlyFavorites));
+ $('v11-favhint').textContent=si?'ප්‍රියතම ස්ථාන මේ උපාංගයේ Browser එකේ පමණක් සුරැකේ.':'Favorites are saved only in this browser on this device.';
+}
+function v11Details(p,article){
+ const dialog=$('v11-dialog'),target=$('v11-detail'),si=lang==='si';
+ target.replaceChildren();
+ const heading=document.createElement('h2');heading.textContent=si?p.si:p.name;
+ const meta=document.createElement('p');meta.className='v11-meta';meta.textContent=(si?'දිස්ත්‍රික්කය: ':'District: ')+p.district+' · '+(t[lang][p.cat]||p.cat);
+ target.append(heading,meta);
+ const existing=article.querySelector('img.photo');
+ if(existing&&existing.complete&&existing.naturalWidth){
+  const photo=document.createElement('img');photo.src=existing.src;photo.alt=existing.alt;photo.className='v11-modal-photo';photo.loading='lazy';target.append(photo);
+ }
+ const desc=document.createElement('p');desc.textContent=si?p.siDesc:p.enDesc;target.append(desc);
+ const note=document.createElement('p');note.className='v11-meta';note.textContent=si?'සංචාරයට පෙර විවෘත වේලාවන්, ප්‍රවේශපත් සහ ගමන් තත්ත්වය නිල මූලාශ්‍රවලින් තහවුරු කරගන්න.':'Before visiting, verify opening hours, tickets and travel conditions with official sources.';target.append(note);
+ const actions=document.createElement('div');actions.className='v11-actions';
+ const map=document.createElement('a');map.className='v11-btn';map.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.name+', '+p.district+', Sri Lanka');map.target='_blank';map.rel='noopener noreferrer';map.textContent=si?'📍 සිතියම බලන්න':'📍 Open Google Maps';actions.append(map);
+ const fav=document.createElement('button');fav.type='button';fav.className='v11-btn';
+ const update=()=>fav.textContent=v11Favorites.has(v11Key(p))?(si?'♥ ප්‍රියතමවලින් ඉවත් කරන්න':'♥ Remove favorite'):(si?'♡ ප්‍රියතමවලට එක් කරන්න':'♡ Save favorite');
+ update();fav.addEventListener('click',()=>{const k=v11Key(p);if(v11Favorites.has(k))v11Favorites.delete(k);else v11Favorites.add(k);v11Save();update();v11Labels();render();});actions.append(fav);
+ target.append(actions);
+ if(typeof dialog.showModal==='function')dialog.showModal();else dialog.setAttribute('open','');
+}
+$('v11-showfav').addEventListener('click',()=>{v11OnlyFavorites=!v11OnlyFavorites;v11Labels();render();});
+$('v11-close').addEventListener('click',()=>$('v11-dialog').close());
+$('v11-dialog').addEventListener('click',e=>{if(e.target===$('v11-dialog'))$('v11-dialog').close();});
+
 function render(){
 const q=$('query').value.trim().toLocaleLowerCase(),cat=$('category').value,dist=$('districtFilter').value;
-const filtered=places.filter(p=>(!missingOnly||missingPlaces().includes(p))&&(dist==='all'||p.district===dist)&&(cat==='all'||p.cat===cat)&&(!q||(p.name+' '+p.si+' '+p.district+' '+p.enDesc+' '+p.siDesc).toLocaleLowerCase().includes(q)));
+const filtered=places.filter(p=>(!v11OnlyFavorites||v11Favorites.has(v11Key(p)))&&(!missingOnly||missingPlaces().includes(p))&&(dist==='all'||p.district===dist)&&(cat==='all'||p.cat===cat)&&(!q||(p.name+' '+p.si+' '+p.district+' '+p.enDesc+' '+p.siDesc).toLocaleLowerCase().includes(q)));
 $('cards').replaceChildren();
 for(const p of filtered){
 const article=document.createElement('article');article.className='card';
@@ -210,7 +263,13 @@ const desc=document.createElement('p');desc.textContent=lang==='si'?p.siDesc:p.e
 const map=document.createElement('a');map.className='textlink';map.target='_blank';map.rel='noopener noreferrer';map.href='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.name+', '+p.district+', Sri Lanka');map.textContent=t[lang].map;
 const credit=document.createElement('div');credit.className='credit';if(p.file)credit.append(t[lang].photo+': '+p.credit+' · '+p.license+' · ');
 const source=document.createElement('a');source.href=sourceUrl(p.file);source.target='_blank';source.rel='noopener noreferrer';source.textContent='Wikimedia Commons ↗';if(p.file){credit.append(source)}else{const photoSearch=document.createElement('a');photoSearch.href='https://commons.wikimedia.org/w/index.php?search='+encodeURIComponent(p.name+' Sri Lanka')+'&title=Special:MediaSearch&type=image';photoSearch.target='_blank';photoSearch.rel='noopener noreferrer';photoSearch.textContent=lang==='si'?'මෙම ස්ථානයේ ඡායාරූප සොයන්න ↗':'Find photos of this place ↗';credit.append(photoSearch)}
-body.append(chip,h,desc,map,credit);if(p.file){article.append(img)}else{const placeholder=document.createElement('div');placeholder.className='photo no-photo';placeholder.textContent='📍 '+p.district+' · Sri Lanka';article.append(placeholder)}article.append(body);$('cards').append(article);if(!p.file)enqueuePhoto(p,article);
+const actions=document.createElement('div');actions.className='v11-actions';
+const detailsBtn=document.createElement('button');detailsBtn.className='v11-btn';detailsBtn.type='button';detailsBtn.textContent=lang==='si'?'විස්තර බලන්න':'View details';detailsBtn.addEventListener('click',()=>v11Details(p,article));
+const favBtn=document.createElement('button');favBtn.className='v11-btn v11-fav';favBtn.type='button';favBtn.setAttribute('aria-pressed',String(v11Favorites.has(v11Key(p))));favBtn.textContent=v11Favorites.has(v11Key(p))?'♥':'♡';
+favBtn.setAttribute('aria-label',(v11Favorites.has(v11Key(p))?'Remove favorite: ':'Save favorite: ')+p.name);
+favBtn.addEventListener('click',()=>{const key=v11Key(p);if(v11Favorites.has(key))v11Favorites.delete(key);else v11Favorites.add(key);v11Save();v11Labels();render();});
+actions.append(detailsBtn,favBtn);
+body.append(chip,h,desc,map,credit,actions);if(p.file){article.append(img)}else{const placeholder=document.createElement('div');placeholder.className='photo no-photo';placeholder.textContent='📍 '+p.district+' · Sri Lanka';article.append(placeholder)}article.append(body);$('cards').append(article);if(!p.file)enqueuePhoto(p,article);
 }
 updatePhotoAudit();$('count').textContent=filtered.length+' '+t[lang].results;$('empty').classList.toggle('hidden',filtered.length>0);
 }
@@ -227,10 +286,10 @@ btn.append(title,sub);btn.addEventListener('click',()=>{select.value=name;$('que
 }
 select.value=selected;
 }
-function translate(){lang=$('lang').value;document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(el=>{if(t[lang][el.dataset.i])el.textContent=t[lang][el.dataset.i]});$('query').placeholder=lang==='si'?'ඇල්ල, වෙරළ, සංස්කෘතිය...':'Try Ella, beaches, culture...';renderDistricts();render()}
+function translate(){lang=$('lang').value;v11Labels();document.documentElement.lang=lang;document.querySelectorAll('[data-i]').forEach(el=>{if(t[lang][el.dataset.i])el.textContent=t[lang][el.dataset.i]});$('query').placeholder=lang==='si'?'ඇල්ල, වෙරළ, සංස්කෘතිය...':'Try Ella, beaches, culture...';renderDistricts();render()}
 $('lang').addEventListener('change',translate);$('query').addEventListener('input',render);$('category').addEventListener('change',render);$('districtFilter').addEventListener('change',render);
 $('searchForm').addEventListener('submit',e=>{e.preventDefault();render();$('destinations').scrollIntoView({behavior:'smooth'})});
 $('missingOnly').addEventListener('click',()=>{missingOnly=!missingOnly;render();$('destinations').scrollIntoView({behavior:'smooth'});});
 $('copyMissing').addEventListener('click',async()=>{const names=missingPlaces().map(p=>p.name+' — '+p.district).join('\n');if(!names){alert(lang==='si'?'තවම නැති ඡායාරූප හඳුනාගෙන නැත.':'No missing photos identified yet.');return;}try{await navigator.clipboard.writeText(names);alert(lang==='si'?'ස්ථාන නම් Copy කළා.':'Missing place names copied.')}catch(e){prompt('Copy missing place names:',names)}});
 $('year').textContent=new Date().getFullYear();translate();
-</script></body></html>
+</script><dialog id="v11-dialog" aria-label="Destination details"><div class="v11-modal-body"><button id="v11-close" class="v11-close" type="button">✕ Close</button><div id="v11-detail"></div></div></dialog></body></html>
