@@ -11,7 +11,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#087d78">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Lanka Travel Finder","url":"https://kosalacoc10-web.github.io/lanka-travel-finder/","description":"Discover 125 places across all 25 districts of Sri Lanka. Explore attractions, hotels, restaurants, maps and trip plans with English, Sinhala and Tamil guides.","inLanguage":["en","si","ta"]}</script>
-<title>Lanka Travel Finder V19 | Discover Sri Lanka</title><style>
+<title>Lanka Travel Finder V20 | Discover Sri Lanka</title><style>
 :root{--ink:#163c40;--teal:#087d78;--sand:#f7f5ef;--muted:#5b7275;--line:#dce6e3}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:system-ui,'Segoe UI',sans-serif;background:var(--sand);color:var(--ink)}
 a{color:inherit}button,input,select{font:inherit}button{cursor:pointer}.wrap{max-width:1140px;margin:auto;padding:0 22px}
@@ -331,7 +331,7 @@ html[data-theme="dark"] .v19-demo,body.dark .v19-demo,body[data-theme="dark"] .v
 <div class="v19-demo" id="v19-demo" aria-labelledby="v19-demo-title">
 <div class="v19-demo-head"><h3 id="v19-demo-title">See a sample hotel listing</h3><span class="v19-demo-badge" id="v19-demo-badge">DEMO · NOT A REAL AD</span></div>
 <div class="v19-demo-card"><div class="v19-demo-art" aria-hidden="true"><span class="v19-icon">🏨</span><strong>Lanka Travel Finder</strong><small id="v19-image-note">Your approved hotel photo here</small></div>
-<div class="v19-demo-info"><h4 id="v19-hotel">Your Hotel Name Here</h4><p id="v19-location">📍 Your district, Sri Lanka</p><p id="v19-description">Show travelers your hotel, amenities, location and official booking contact.</p><span class="v19-fake" id="v19-preview">Example: View hotel details</span></div></div>
+<div class="v19-demo-info"><h4 id="v19-hotel">Your Hotel Name Here</h4><p id="v19-location">📍 Your district, Sri Lanka</p><p id="v19-description">Show travelers your hotel, amenities, location and official booking contact.</p><button type="button" class="v19-fake v20-open" id="v19-preview" aria-haspopup="dialog" aria-controls="v20-modal">Example: View hotel details</button></div></div>
 <p class="v19-demo-foot" id="v19-demo-foot">Illustrative preview only. No real hotel, booking link, endorsement or paid advertiser is represented. Any future paid listing will be labeled Sponsored.</p>
 </div>
 <div class="v18-ad-action"><div><h3 id="v18-cta-title">Ask about a sponsored listing</h3><p id="v18-cta-text">Email your business name, district, official website or contact details, and the promotion you have in mind. Please send only photos you own or have permission to use. We will review inquiries; publication is not guaranteed.</p></div><a class="btn" id="v18-mail" href="mailto:lankatravelfinder@gmail.com?subject=Lanka%20Travel%20Finder%20-%20Advertising%20Inquiry&amp;body=Business%20name%3A%0ADistrict%3A%0AService%3A%0AOfficial%20website%20or%20contact%3A%0APromotion%20request%3A">✉ Contact for advertising</a></div>
@@ -685,4 +685,53 @@ document.getElementById('lang')?.addEventListener('change',update);update();
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateDate()});
  setInterval(updateDate,60000);
 })();
-</script></body></html>
+</script>
+<style>
+.v20-open{cursor:pointer;font:inherit;background:transparent;color:inherit}
+.v20-open:focus-visible,.v20-close:focus-visible{outline:3px solid #15b8a6;outline-offset:3px}
+.v20-overlay[hidden]{display:none!important}
+.v20-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px}
+.v20-dialog{background:#fff;color:#183d3b;width:min(100%,490px);max-height:90vh;overflow:auto;border-radius:22px;padding:24px;box-shadow:0 18px 70px #0005;font-family:system-ui,sans-serif}
+[data-theme="dark"] .v20-dialog{background:#1a3337;color:#f1faf9}
+.v20-dialog h3{font:800 1.4rem system-ui,sans-serif;margin:12px 0}
+.v20-dialog p{line-height:1.65;font-size:15px}
+.v20-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.v20-actions button,.v20-actions a{font:700 14px system-ui,sans-serif;border:1px solid #0c8d81;background:#087f77;color:#fff;border-radius:12px;padding:12px;text-decoration:none;cursor:pointer}
+.v20-actions button[disabled]{background:transparent;color:#81918f;border-color:#81918f;cursor:not-allowed}
+.v20-close{float:right;border:0;background:transparent;color:inherit;font:700 25px system-ui;cursor:pointer}
+.v20-tag{display:inline-block;border:1px solid #13a99a;border-radius:40px;padding:6px 12px;font:700 12px system-ui}
+</style>
+<div id="v20-modal" class="v20-overlay" hidden>
+ <div class="v20-dialog" role="dialog" aria-modal="true" aria-labelledby="v20-title" tabindex="-1">
+  <button class="v20-close" id="v20-close" aria-label="Close">×</button>
+  <span class="v20-tag" id="v20-tag">DEMO — NO REAL HOTEL</span>
+  <h3 id="v20-title">Sample hotel details</h3>
+  <p id="v20-description">This interactive example shows where a real hotel's amenities, verified location and official contact details could appear. No real hotel or booking is offered here.</p>
+  <p id="v20-features">🏨 Hotel name · 📍 District · 🛏️ Amenities · 📞 Official contact</p>
+  <div class="v20-actions">
+   <button disabled id="v20-map" title="No real hotel location is available">📍 Maps — demo only</button>
+   <button disabled id="v20-book" title="No booking link is available">🔗 Booking — demo only</button>
+   <a href="mailto:lankatravelfinder@gmail.com?subject=Lanka%20Travel%20Finder%20-%20Advertising%20Inquiry" id="v20-contact">✉ Advertise your hotel</a>
+  </div>
+ </div>
+</div>
+<script>
+(function(){
+ const overlay=document.getElementById('v20-modal'), opener=document.getElementById('v19-preview'), closer=document.getElementById('v20-close'), lang=document.getElementById('lang');
+ if(!overlay||!opener)return;
+ const translations={
+ en:['DEMO — NO REAL HOTEL','Sample hotel details',"This interactive example shows where a real hotel's amenities, verified location and official contact details could appear. No real hotel or booking is offered here.",'🏨 Hotel name · 📍 District · 🛏️ Amenities · 📞 Official contact','📍 Maps — demo only','🔗 Booking — demo only','✉ Advertise your hotel','Close'],
+ si:['ආදර්ශයක් — සැබෑ හෝටලයක් නොවේ','හෝටල් විස්තර ආදර්ශය','සැබෑ හෝටලයක පහසුකම්, තහවුරු කළ ස්ථානය සහ නිල සම්බන්ධතා පෙන්විය හැකි ආකාරය මෙහි දැක්වේ. මෙහි සැබෑ හෝටලයක් හෝ වෙන්කිරීමක් නැත.','🏨 හෝටලයේ නම · 📍 දිස්ත්‍රික්කය · 🛏️ පහසුකම් · 📞 නිල සම්බන්ධතාව','📍 සිතියම — ආදර්ශයක්','🔗 වෙන්කිරීම — ආදර්ශයක්','✉ ඔබේ හෝටලය ප්‍රචාරය කරන්න','වසන්න'],
+ ta:['மாதிரி — உண்மையான ஹோட்டல் இல்லை','மாதிரி ஹோட்டல் விவரங்கள்','உண்மையான ஹோட்டலின் வசதிகள், உறுதிப்படுத்தப்பட்ட இடம் மற்றும் அதிகாரப்பூர்வ தொடர்பு விவரங்கள் எவ்வாறு காட்டப்படும் என்பதற்கான மாதிரி. இங்கே உண்மையான முன்பதிவு இல்லை.','🏨 ஹோட்டல் பெயர் · 📍 மாவட்டம் · 🛏️ வசதிகள் · 📞 தொடர்பு','📍 வரைபடம் — மாதிரி','🔗 முன்பதிவு — மாதிரி','✉ உங்கள் ஹோட்டலை விளம்பரப்படுத்துங்கள்','மூடு']
+ };
+ const ids=['v20-tag','v20-title','v20-description','v20-features','v20-map','v20-book','v20-contact'];
+ function translate(){let a=translations[lang?.value]||translations.en;ids.forEach((id,i)=>{const e=document.getElementById(id);if(e)e.textContent=a[i]});closer.setAttribute('aria-label',a[7])}
+ opener.addEventListener('click',()=>{translate();overlay.hidden=false;document.body.style.overflow='hidden';closer.focus()});
+ function close(){overlay.hidden=true;document.body.style.overflow='';opener.focus()}
+ closer.addEventListener('click',close);
+ overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
+ document.addEventListener('keydown',e=>{if(overlay.hidden)return;if(e.key==='Escape')close();if(e.key==='Tab'){const active=[closer,document.getElementById('v20-contact')];if(e.shiftKey&&document.activeElement===active[0]){e.preventDefault();active[1].focus()}else if(!e.shiftKey&&document.activeElement===active[1]){e.preventDefault();active[0].focus()}}});
+ lang?.addEventListener('change',translate);translate();
+})();
+</script>
+</body></html>
