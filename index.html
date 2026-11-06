@@ -76,7 +76,7 @@ header{box-shadow:0 5px 24px #0b3c3910}
  #v14-featured h2{font-size:1.55rem;line-height:1.2}
 }
 .v22-contact-info{display:flex;flex-wrap:wrap;align-items:center;gap:9px 15px;margin:10px 0 16px;padding:13px;border-radius:12px;background:#edf7f3;border:1px solid #b8d9ce}.v22-contact-info p{width:100%;margin:0}.v22-contact-info a{font-weight:700;color:#086e63}.v22-contact-info small{width:100%;color:#45655f}
-</style>
+.v22-business-photo{position:relative}.v224-photo-credit{position:absolute;bottom:5px;left:6px;right:6px;z-index:2;background:rgba(0,0,0,.75);color:white!important;font-size:10px;padding:4px 6px;border-radius:4px;text-decoration:underline}.v22-business-photo img{width:100%;height:100%;object-fit:cover}</style>
 <style>
 .v11-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
 .v11-btn{border:1px solid #bdd5cf;border-radius:10px;background:#fff;color:#087d78;padding:9px 12px;font-weight:700}
@@ -369,6 +369,10 @@ function sourceUrl(file){return 'https://commons.wikimedia.org/wiki/File:'+encod
 function imageUrl(file){return 'https://commons.wikimedia.org/wiki/Special:FilePath/'+encodeURIComponent(file).replace(/%20/g,'_')+'?width=900'}
 // V6: Wikimedia Commons photo suggestions. These are search results, not human-verified location photos.
 const photoCache=new Map();
+// Keep successfully matched photo metadata between visits; never cache failures permanently.
+try {const saved=JSON.parse(localStorage.getItem('ltf-photo-suggestions-v232')||'{}');for(const [k,v] of Object.entries(saved)){if(v&&/^https:\/\//.test(v.url)&&/^https:\/\//.test(v.source))photoCache.set(k,v)}}catch(e){}
+function persistPhotoSuggestions(){try{localStorage.setItem('ltf-photo-suggestions-v232',JSON.stringify(Object.fromEntries([...photoCache].filter(([k,v])=>v&&v.url).slice(0,180))))}catch(e){}}
+
 let missingOnly=false;
 function updatePhotoAudit(){
  const withFiles=places.filter(p=>p.file).length;
@@ -474,15 +478,15 @@ function enqueuePhoto(p,article){
  if(!photoQueue.some(item=>item.key===key))photoQueue.push({p,article,key});pumpPhotos();
 }
 function pumpPhotos(){
- while(activePhotoRequests<3&&photoQueue.length){
+ while(activePhotoRequests<5&&photoQueue.length){
   const {p,article,key}=photoQueue.shift();activePhotoRequests++;
-  lookupCommons(p).then(result=>{photoCache.set(key,result);showSuggestedPhoto(p,article,result);updatePhotoAudit();if(result)document.dispatchEvent(new CustomEvent('v16-photo-ready',{detail:{name:p.name}}));if(missingOnly)render()}).catch(()=>{}).finally(()=>{activePhotoRequests--;pumpPhotos()});
+  lookupCommons(p).then(result=>{photoCache.set(key,result);if(result)persistPhotoSuggestions();showSuggestedPhoto(p,article,result);updatePhotoAudit();if(result)document.dispatchEvent(new CustomEvent('v16-photo-ready',{detail:{name:p.name}}));if(missingOnly)render()}).catch(()=>{photoCache.set(key,null);updatePhotoAudit()}).finally(()=>{activePhotoRequests--;pumpPhotos()});
  }
 }
 function showSuggestedPhoto(p,article,result){
  if(!result||!article.isConnected)return;
  const placeholder=article.querySelector('.no-photo');if(!placeholder)return;
- const img=document.createElement('img');img.className='photo';img.loading='lazy';img.alt='Wikimedia Commons photo suggestion for '+p.name;img.referrerPolicy='no-referrer';
+ const img=document.createElement('img');img.className='photo';img.loading='lazy';img.decoding='async';img.alt='Wikimedia Commons photo suggestion for '+p.name;img.referrerPolicy='no-referrer';
  img.onerror=()=>{img.replaceWith(placeholder);placeholder.style.display='flex'};
  img.src=result.url;placeholder.style.display='none';placeholder.before(img);
  const credit=article.querySelector('.credit');if(credit){credit.replaceChildren();const a=document.createElement('a');a.href=result.source;a.target='_blank';a.rel='noopener noreferrer';a.textContent=(lang==='si'?'ඡායාරූප මූලාශ්‍රය / පරීක්ෂා කරන්න ↗':'Suggested photo / verify source ↗');credit.append(a);if(result.license)credit.append(' · '+result.license);if(result.artist)credit.append(' · '+result.artist);}
@@ -537,8 +541,8 @@ function v11Details(p,article){
  // Always render the selected destination's photo first, even when its grid card has not loaded.
  if(p.file){
   const photo=document.createElement('img');photo.src=imageUrl(p.file);photo.alt=p.name+' — destination photo';photo.className='v11-modal-photo v22-detail-hero';photo.loading='eager';photo.onerror=()=>{photo.hidden=true;const notice=document.createElement('p');notice.className='v22-photo-note';notice.textContent='Photo temporarily unavailable';photo.insertAdjacentElement('afterend',notice)};target.insertBefore(photo,heading);
- }else if(existing&&existing.src){
-  const photo=document.createElement('img');photo.src=existing.src;photo.alt=existing.alt||p.name;photo.className='v11-modal-photo v22-detail-hero';target.insertBefore(photo,heading);
+ }else if((existing&&existing.src)||photoCache.get(p.district+'|'+p.name)?.url){
+  const photo=document.createElement('img');photo.src=photoCache.get(p.district+'|'+p.name)?.url||existing.src;photo.alt=(existing&&existing.alt)||p.name;photo.className='v11-modal-photo v22-detail-hero';target.insertBefore(photo,heading);
  }
  const desc=document.createElement('p');desc.textContent=si?p.siDesc:p.enDesc;target.append(desc);
  v151AppendDetails(target,p);
@@ -628,24 +632,68 @@ const v22Descriptions={
 };
 function v22Description(p){if(p.description)return p.description;if(v22Descriptions[p.name])return v22Descriptions[p.name];const category={hotel:'Hotel',restaurant:'Restaurant',cafe:'Café',guesthouse:'Guest house',homestay:'Homestay'}[p.type]||'Business';return category+' listing in '+p.district+', Sri Lanka. Check current services, photos, hours and availability with the business before visiting.'}
 function v22Extra(p){const wrap=document.createElement('div');wrap.className='v22-business-extra';const desc=document.createElement('p');desc.textContent=v22Description(p);wrap.append(desc);if(p.address){const addr=document.createElement('p');addr.textContent='📍 '+p.address;wrap.append(addr)}if(p.phone){const phone=document.createElement('a');phone.href='tel:'+p.phone.replace(/[^0-9+]/g,'');phone.textContent='☎ '+p.phone;wrap.append(phone)}if(p.website&&/^https:\/\//.test(p.website)){const link=document.createElement('a');link.href=p.website;link.target='_blank';link.rel='noopener noreferrer';link.textContent='Official website';wrap.append(link)}if(p.source){const source=document.createElement('a');source.href=p.source;source.target='_blank';source.rel='noopener noreferrer';source.textContent='Source: Sri Lanka Tourism directory';wrap.append(source)}return wrap}
+// Carefully matched Wikimedia Commons filenames; each license is checked live before use.
+const v224CommonsCandidates={
+ '98 Acres Resort & Spa':'98 acres 001.jpg',
+ 'Cinnamon Lodge Habarana':'Cinnamon Lodge Habarana.jpg',
+ 'Heritance Kandalama':'KandalamaHotel.JPG',
+ 'Jetwing Lagoon':'Jetwing Lagoon.jpg',
+ 'Maalu Maalu Resort & Spa':'Maalu Maalu Beach Resort, Pasikuda, Sri Lanka.jpg',
+ 'Queen’s Hotel':'Queen\'s Hotel.jpg',
+ 'Queens Hotel':'Queen\'s Hotel.jpg',
+ 'Uga Bay':'Uga Bay Hotel Entrance at Night.jpg',
+ 'Forest Rock Garden':'Forest Rock Garden Hotel, Anuradhapura, Sri Lanka.jpg',
+ 'Sigiriya Village':'Sigiriya Village (4).jpg'
+};
+const v224CommonsCache=new Map();
+async function v224CommonsPhoto(p){
+ const filename=v224CommonsCandidates[p.name];if(!filename)return null;
+ if(!v224CommonsCache.has(filename)){
+   const task=(async()=>{
+     const api='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=url%7Cextmetadata&iiurlwidth=800&titles='+encodeURIComponent('File:'+filename);
+     const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),8500);
+     try{
+       const response=await fetch(api,{signal:controller.signal});if(!response.ok)return null;
+       const json=await response.json();const page=Object.values(json.query?.pages||{})[0];
+       const info=page?.imageinfo?.[0],meta=info?.extmetadata||{};
+       const license=(meta.LicenseShortName?.value||'').toLowerCase();
+       const allowed=/^(cc0|public domain|cc by|cc by-sa|cc-by|cc-by-sa)/.test(license);
+       if(!allowed||!info?.thumburl&&!info?.url)return null;
+       return {url:info.thumburl||info.url,source:info.descriptionurl,license:meta.LicenseShortName?.value||'Open license'};
+     }catch(e){return null}finally{clearTimeout(timeout)}
+   })();v224CommonsCache.set(filename,task);
+ }
+ return v224CommonsCache.get(filename);
+}
 function v22BusinessPhoto(p){
  const frame=document.createElement('div');frame.className='v22-business-photo';
  if(p.photoVerified&&p.photoUrl&&/^https:\/\//.test(p.photoUrl)){
-   const img=document.createElement('img');img.src=p.photoUrl;img.alt=p.name+' property photograph';img.loading='lazy';
+   const img=document.createElement('img');img.src=p.photoUrl;img.alt=p.name+' property photograph';img.loading='lazy';img.referrerPolicy='no-referrer';img.decoding='async';
    img.onerror=()=>{frame.replaceChildren(v22PhotoPlaceholder(p))};frame.append(img);
- }else frame.append(v22PhotoPlaceholder(p));
+ }else {
+   frame.append(v22PhotoPlaceholder(p));
+   if(v224CommonsCandidates[p.name]){
+     v224CommonsPhoto(p).then(photo=>{
+       if(!photo||!frame.isConnected)return;
+       const img=document.createElement('img');img.src=photo.url;img.alt='Wikimedia Commons photo associated with '+p.name;img.loading='lazy';img.referrerPolicy='no-referrer';img.decoding='async';
+       img.onerror=()=>{frame.replaceChildren(v22PhotoPlaceholder(p))};
+       const credit=document.createElement('a');credit.href=photo.source;credit.target='_blank';credit.rel='noopener noreferrer';credit.className='v224-photo-credit';credit.textContent='Photo: Wikimedia Commons · '+photo.license;
+       frame.replaceChildren(img,credit);
+     });
+   }
+ }
  return frame;
 }
 function v22PhotoPlaceholder(p){
  const holder=document.createElement('div');holder.className='v22-photo-placeholder';
  const symbols={hotel:'🏨',restaurant:'🍽️',cafe:'☕',guesthouse:'🛏️',homestay:'🏡'};
  const symbol=document.createElement('span');symbol.className='v22-photo-symbol';symbol.textContent=symbols[p.type]||'📍';
- const caption=document.createElement('span');caption.textContent='Property photo not yet verified';
+ const caption=document.createElement('span');caption.textContent='Photo pending verification';
  holder.append(symbol,caption);return holder;
 }
 function detail(p){const root=el('v13-detail');root.replaceChildren();root.append(v22BusinessPhoto(p));const h=document.createElement('h2');h.textContent=p.name;const meta=document.createElement('p');meta.textContent=p.district+' · '+tx()[p.type];const note=document.createElement('p');note.textContent=tx().verify;const link=document.createElement('a');link.href=mapLink(p);link.target='_blank';link.rel='noopener noreferrer';link.className='btn';link.textContent='📍 '+tx().map;root.append(h,meta,v22Extra(p),note,link);el('v13-dialog').showModal()}
 window.v22OpenBusiness=detail;
-function render(){const t=tx();el('v13-nav').textContent=t.nav;el('v13-tag').textContent=t.tag;el('v13-title').textContent=t.title;el('v13-intro').textContent=t.intro;el('v13-search').placeholder=t.search;el('v13-note').textContent=t.note;const select=el('v13-district'),value=select.value;select.replaceChildren();for(const [v,label] of [['all',t.allDistricts],...districts.map(d=>[d,d])]){const o=document.createElement('option');o.value=v;o.textContent=label;select.append(o)}select.value=value||'all';const type=el('v13-type'),typeValue=type.value;type.replaceChildren();for(const [v,label] of [['all',t.all],['hotel',t.hotel],['restaurant',t.restaurant],['cafe',t.cafe],['guesthouse',t.guesthouse],['homestay',t.homestay]]){const o=document.createElement('option');o.value=v;o.textContent=label;type.append(o)}type.value=typeValue||'all';const q='',items=data.filter(p=>(type.value==='all'||p.type===type.value)&&(select.value==='all'||p.district===select.value)&&(!q||(p.name+' '+p.district).toLowerCase().includes(q)));el('v13-count').textContent=items.length+' '+t.count;const root=el('v13-cards');root.replaceChildren();for(const p of items){const card=document.createElement('article');card.className='v13-card';const chip=document.createElement('div');chip.className='v13-chip';chip.textContent=({hotel:'🏨 ',restaurant:'🍽️ ',cafe:'☕ ',guesthouse:'🛏️ ',homestay:'🏡 '}[p.type]||'📍 ')+t[p.type]+' · '+p.district;const h=document.createElement('h3');h.textContent=p.name;const note=document.createElement('p');note.textContent=t.verify;const actions=document.createElement('div');actions.className='v13-actions';const btn=document.createElement('button');btn.type='button';btn.textContent=t.details;btn.addEventListener('click',()=>detail(p));const a=document.createElement('a');a.href=mapLink(p);a.target='_blank';a.rel='noopener noreferrer';a.textContent='📍 '+t.map;actions.append(btn,a);card.append(v22BusinessPhoto(p),chip,h,v22Extra(p),note,actions);root.append(card)}}
+function render(){const t=tx();el('v13-nav').textContent=t.nav;el('v13-tag').textContent=t.tag;el('v13-title').textContent=t.title;el('v13-intro').textContent=t.intro;el('v13-search').placeholder=t.search;el('v13-note').textContent=t.note;const select=el('v13-district'),value=select.value;select.replaceChildren();for(const [v,label] of [['all',t.allDistricts],...districts.map(d=>[d,d])]){const o=document.createElement('option');o.value=v;o.textContent=label;select.append(o)}select.value=value||'all';const type=el('v13-type'),typeValue=type.value;type.replaceChildren();for(const [v,label] of [['all',t.all],['hotel',t.hotel],['restaurant',t.restaurant],['cafe',t.cafe],['guesthouse',t.guesthouse],['homestay',t.homestay]]){const o=document.createElement('option');o.value=v;o.textContent=label;type.append(o)}type.value=typeValue||'all';const q=el('v13-search').value.trim().toLocaleLowerCase(),items=data.filter(p=>(type.value==='all'||p.type===type.value)&&(select.value==='all'||p.district===select.value)&&(!q||(p.name+' '+p.district).toLowerCase().includes(q)));el('v13-count').textContent=items.length+' '+t.count;const root=el('v13-cards');root.replaceChildren();for(const p of items){const card=document.createElement('article');card.className='v13-card';const chip=document.createElement('div');chip.className='v13-chip';chip.textContent=({hotel:'🏨 ',restaurant:'🍽️ ',cafe:'☕ ',guesthouse:'🛏️ ',homestay:'🏡 '}[p.type]||'📍 ')+t[p.type]+' · '+p.district;const h=document.createElement('h3');h.textContent=p.name;const note=document.createElement('p');note.textContent=t.verify;const actions=document.createElement('div');actions.className='v13-actions';const btn=document.createElement('button');btn.type='button';btn.textContent=t.details;btn.addEventListener('click',()=>detail(p));const a=document.createElement('a');a.href=mapLink(p);a.target='_blank';a.rel='noopener noreferrer';a.textContent='📍 '+t.map;actions.append(btn,a);card.append(v22BusinessPhoto(p),chip,h,v22Extra(p),note,actions);root.append(card)}}
 window.v14SuggestionText=function(district){const lang=el('lang').value;const names={en:['Suggested hotel','Suggested restaurant'],si:['යෝජිත හෝටලය','යෝජිත අවන්හල'],ta:['பரிந்துரைக்கப்பட்ட ஹோட்டல்','பரிந்துரைக்கப்பட்ட உணவகம்']}[lang]||['Suggested hotel','Suggested restaurant'];return ['hotel','restaurant'].map((type,i)=>{const p=data.find(x=>x.district===district&&x.type===type);return p?names[i]+': '+p.name+' (unverified)':''}).filter(Boolean).join('\n')};
 window.v13Suggestions=function(district,dayIndex=0){const picks=['hotel','restaurant'].map(type=>data.filter(p=>p.district===district&&p.type===type)[dayIndex%Math.max(1,data.filter(p=>p.district===district&&p.type===type).length)]);if(!picks.some(Boolean))return null;const div=document.createElement('div');div.className='v13-suggestion';const t=tx();picks.forEach((p,i)=>{const line=document.createElement('div');line.style.margin='7px 0';const strong=document.createElement('strong');strong.textContent=(i===0?'🏨 '+t.stay:'🍽️ '+t.eat)+': ';line.append(strong);if(p){const btn=document.createElement('button');btn.type='button';btn.textContent=p.name;btn.addEventListener('click',()=>detail(p));line.append(btn)}else line.append(document.createTextNode(t.none));div.append(line)});const note=document.createElement('small');note.textContent=t.verify;div.append(note);return div};
 el('v13-search').addEventListener('input',render);el('v13-type').addEventListener('change',render);el('v13-district').addEventListener('change',render);el('lang').addEventListener('change',render);el('v13-close').addEventListener('click',()=>el('v13-dialog').close());el('v13-dialog').addEventListener('click',e=>{if(e.target===el('v13-dialog'))el('v13-dialog').close()});render();
@@ -1055,7 +1103,7 @@ function showPicked(item){
  const body=document.createElement('div');body.className='v22-picked-body';
  const title=document.createElement('h3');title.textContent=item.name;
  const info=document.createElement('p');info.textContent=item.sub;
- if(item.type==='place'&&item.raw.file){const img=document.createElement('img');img.src=typeof imageUrl==='function'?imageUrl(item.raw.file):'';img.alt=item.name+' destination photograph';img.loading='eager';img.onerror=()=>{img.hidden=true;const fallback=document.createElement('p');fallback.className='v22-photo-note';fallback.textContent='Photo temporarily unavailable';picked.insertBefore(fallback,body)};picked.append(img)}else if(item.type!=='place'&&item.raw.photoVerified&&item.raw.photoUrl){const img=document.createElement('img');img.src=item.raw.photoUrl;img.alt=item.name+' property photograph';img.loading='lazy';img.onerror=()=>img.remove();picked.append(img)}
+ if(item.type==='place'&&(item.raw.file||photoCache.get(item.raw.district+'|'+item.raw.name)?.url)){const img=document.createElement('img');img.src=item.raw.file?(typeof imageUrl==='function'?imageUrl(item.raw.file):''):photoCache.get(item.raw.district+'|'+item.raw.name).url;img.alt=item.name+' suggested destination photograph';img.loading='eager';img.onerror=()=>{img.hidden=true;const fallback=document.createElement('p');fallback.className='v22-photo-note';fallback.textContent='Photo temporarily unavailable';picked.insertBefore(fallback,body)};picked.append(img)}else if(item.type!=='place'&&item.raw.photoVerified&&item.raw.photoUrl){const img=document.createElement('img');img.src=item.raw.photoUrl;img.alt=item.name+' property photograph';img.loading='lazy';img.onerror=()=>{img.replaceWith(v22PhotoPlaceholder(item.raw))};picked.append(img)}
  if(item.type!=='place'&&!(item.raw.photoVerified&&item.raw.photoUrl))picked.append(v22PhotoPlaceholder(item.raw));
  const desc=document.createElement('p');desc.textContent=item.type==='place'?(item.raw.enDesc||''): (item.raw.description||(({hotel:'Hotel',restaurant:'Restaurant',cafe:'Café',guesthouse:'Guest house',homestay:'Homestay'}[item.raw.type]||'Business')+' listing in '+item.raw.district+'. Confirm amenities and availability before visiting.'));
  const actions=document.createElement('div');actions.className='v22-picked-actions';
@@ -1099,4 +1147,314 @@ html[data-theme=dark] .v22-photo-pending,body.dark .v22-photo-pending{background
 .v22-picked>.v22-photo-placeholder{min-height:210px}
 html[data-theme="dark"] .v22-photo-placeholder,body.dark .v22-photo-placeholder{background:linear-gradient(135deg,#294b47,#1b3538);color:#e4f7f0}
 @media(max-width:600px){.v22-business-photo{height:200px}}
-</style></body></html>
+</style><style>
+/* V22.2 scenic surface refresh: decorative backgrounds only; content/cards untouched */
+:root{--ltf-glow-a:rgba(16,156,137,.10);--ltf-glow-b:rgba(244,183,92,.10);--ltf-scenic-tint:rgba(255,255,255,.17)}
+html[data-theme="dark"]{--ltf-glow-a:rgba(29,184,175,.10);--ltf-glow-b:rgba(88,124,190,.12);--ltf-scenic-tint:rgba(0,0,0,.08)}
+body{background-image:radial-gradient(ellipse 42% 28% at 5% 24%,var(--ltf-glow-a),transparent 85%),radial-gradient(ellipse 38% 25% at 97% 62%,var(--ltf-glow-b),transparent 85%);background-attachment:fixed}
+/* Keep the existing photographs, content blocks and card layout exactly as-is. */
+section:not(.hero){position:relative}
+section:not(.hero):not(#v14-featured):not(#v21-advertising):not(.v18-advertise):not(.v22-toolkit){background-image:radial-gradient(circle at 96% 8%,var(--ltf-glow-a),transparent 34%),radial-gradient(circle at 3% 93%,var(--ltf-glow-b),transparent 30%)}
+.card,.district-card,.v22-tool,.v21-plan,.v14-feature-card{transition:box-shadow .22s ease,transform .22s ease}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){.card:hover,.district-card:hover,.v22-tool:hover,.v21-plan:hover,.v14-feature-card:hover{transform:translateY(-3px);box-shadow:0 13px 28px rgba(6,65,62,.13)}}
+.ltf-appearance{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:12px;padding:5px 8px;background:var(--panel,#fff);color:var(--ink);font-size:.78rem;font-weight:700}
+.ltf-appearance select{min-height:31px;max-width:128px;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
+.ltf-appearance select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+html[data-theme="dark"] .ltf-appearance{background:#1b3035;border-color:#517476;color:#e9f5f2}
+html[data-theme="dark"] .ltf-appearance option{background:#1b3035;color:#e9f5f2}
+#v151-theme-toggle{display:none!important}
+@media(max-width:550px){.ltf-appearance{font-size:.72rem;padding:4px 5px}.ltf-appearance select{max-width:110px}}
+@media(prefers-reduced-motion:reduce){.card,.district-card,.v22-tool,.v21-plan,.v14-feature-card{transition:none}}
+
+/* V22.3 quality and accessibility refinements; preserve scenic palette and card layout */
+html{scroll-padding-top:112px}
+section[id],article[id],div[id]{scroll-margin-top:112px}
+:where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:3px solid #e4a332!important;outline-offset:3px}
+:where(a,button){-webkit-tap-highlight-color:transparent}
+:where(.card,.mini,.district-card,.v22-tool){transition:box-shadow .18s ease,transform .18s ease}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){.card:hover,.district-card:hover,.v22-tool:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,54,54,.13)}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+html,body{max-width:100%;overflow-x:clip}
+img{max-width:100%}
+#v151-theme-toggle:has(+ .ltf-appearance){display:none!important}
+@media(max-width:700px){html{scroll-padding-top:155px}section[id]{scroll-margin-top:155px}.nav{gap:8px}.nav nav{max-width:100%;overflow-x:auto;scrollbar-width:thin;flex-wrap:nowrap;padding-bottom:4px}.nav nav a{flex-shrink:0}.ltf-appearance{max-width:100%}}
+@media(max-width:380px){.wrap{padding-left:12px;padding-right:12px}.card-body{padding:15px}}
+</style><script>
+/* V22.2 appearance preferences: local clock 06:00-17:59 = day, otherwise night. */
+(function(){
+  'use strict';
+  const root=document.documentElement;
+  const oldButton=document.getElementById('v151-theme-toggle');
+  if(!oldButton)return;
+  const holder=document.createElement('label');holder.className='ltf-appearance';
+  const label=document.createElement('span');label.textContent='🎨';label.setAttribute('aria-hidden','true');
+  const select=document.createElement('select');select.id='ltf-appearance-mode';select.setAttribute('aria-label','Website appearance');
+  holder.append(label,select);oldButton.insertAdjacentElement('afterend',holder);oldButton.hidden=true;oldButton.setAttribute('aria-hidden','true');oldButton.tabIndex=-1;
+  const names={en:['Auto · Day/Night','☀️ Light','🌙 Dark'],si:['ස්වයංක්‍රීය','☀️ දවල්','🌙 රාත්‍රී'],ta:['தானியங்கி','☀️ பகல்','🌙 இரவு']};
+  const lang=document.getElementById('lang');
+  let mode='auto';
+  try{const v=localStorage.getItem('ltf-appearance-mode');if(['auto','light','dark'].includes(v))mode=v;else{const legacy=localStorage.getItem('ltf-theme');if(legacy==='dark'||legacy==='light')mode=legacy;}}catch(e){}
+  function autoTheme(){const hour=new Date().getHours();return hour>=6&&hour<18?'light':'dark'}
+  function apply(){const desired=mode==='auto'?autoTheme():mode;root.dataset.theme=desired;root.style.colorScheme=desired;select.value=mode;}
+  function translate(){const t=names[lang?.value]||names.en;select.replaceChildren();['auto','light','dark'].forEach((v,i)=>{const o=document.createElement('option');o.value=v;o.textContent=t[i];select.append(o)});apply()}
+  select.addEventListener('change',()=>{mode=select.value;try{localStorage.setItem('ltf-appearance-mode',mode);localStorage.setItem('ltf-theme',mode==='auto'?autoTheme():mode)}catch(e){}apply()});
+  lang?.addEventListener('change',()=>{translate();setTimeout(apply,0)});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)apply()});
+  window.addEventListener('focus',apply);
+  setInterval(apply,60000);
+  translate();
+  // The older theme script is initialized earlier; override its startup choice.
+  apply();
+})();
+</script>
+<script>
+/* V22.3: unobtrusive return-to-top action, with no dependencies. */
+(function(){
+ const b=document.createElement('button');b.type='button';b.className='ltf-top-button';b.textContent='↑';b.setAttribute('aria-label','Back to top');b.title='Back to top';
+ b.style.cssText='position:fixed;right:18px;bottom:18px;z-index:40;border:1px solid #b2d7cd;border-radius:50%;width:46px;height:46px;background:#087d78;color:#fff;font-size:24px;box-shadow:0 6px 22px #001e2030;display:none';
+ b.addEventListener('click',()=>window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));
+ const sync=()=>{b.style.display=window.scrollY>700?'block':'none'};
+ window.addEventListener('scroll',sync,{passive:true});document.body.appendChild(b);sync();
+})();
+</script>
+<style>
+/* V22.4 compact collapsible district explorer */
+#districts{padding:20px 0!important;min-height:0!important}
+#districts .wrap>.eyebrow,#districts .wrap>h2,#districts .wrap>p.intro{display:none!important}
+#districtCards{display:grid;grid-template-columns:1fr;gap:6px}
+#districtCards .district-card{padding:10px 12px;border-radius:10px;font-size:.88rem;min-height:44px}
+#districtCards .district-card small{font-size:.72rem;margin-top:2px}
+.ltf-district-trigger{position:fixed;left:0;top:42%;z-index:1090;border:1px solid #8bc6b6;border-left:0;border-radius:0 12px 12px 0;background:#087d78;color:white;padding:11px 10px;box-shadow:0 6px 20px #002d2c33;font-weight:800;cursor:pointer;writing-mode:vertical-rl;letter-spacing:.3px}
+.ltf-district-backdrop{position:fixed;inset:0;z-index:1091;background:rgba(0,22,24,.48);opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s}
+.ltf-district-drawer{position:fixed;left:0;top:0;bottom:0;z-index:1092;width:min(315px,88vw);background:#f2faf7;color:#103f41;box-shadow:12px 0 38px #001c2040;transform:translateX(-105%);transition:transform .22s;display:flex;flex-direction:column;visibility:hidden}
+.ltf-district-open .ltf-district-backdrop{opacity:1;visibility:visible}
+.ltf-district-open .ltf-district-drawer{transform:translateX(0);visibility:visible}
+.ltf-district-head{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 12px;border-bottom:1px solid #c9e3db;gap:10px}
+.ltf-district-head strong{font-size:1rem}
+.ltf-district-close{border:1px solid #a4cfc4;background:transparent;color:inherit;border-radius:9px;padding:7px 11px;cursor:pointer;font-weight:800}
+.ltf-district-list{overflow-y:auto;overscroll-behavior:contain;padding:12px 14px 22px;flex:1}
+.ltf-district-list .district-grid{display:grid;grid-template-columns:1fr;gap:7px}
+.ltf-district-drawer .district-card{background:#fff;color:#103f41;border-color:#c9e3db}
+html[data-theme="dark"] .ltf-district-drawer{background:#142c31;color:#edf8f6}
+html[data-theme="dark"] .ltf-district-head{border-color:#365458}
+html[data-theme="dark"] .ltf-district-close{border-color:#537579;color:#edf8f6}
+html[data-theme="dark"] .ltf-district-drawer .district-card{background:#20393d!important;color:#edf8f6!important;border-color:#355357!important}
+@media(max-width:600px){.ltf-district-trigger{top:auto;bottom:92px;writing-mode:horizontal-tb;padding:11px 13px;border-radius:0 12px 12px 0;font-size:.82rem}.ltf-district-drawer{width:min(320px,90vw)}}
+@media(prefers-reduced-motion:reduce){.ltf-district-drawer,.ltf-district-backdrop{transition:none}}
+</style>
+<script>
+/* V22.4: relocate the existing 25-district grid, preserving its filters and translations. */
+(function(){
+ const grid=document.getElementById('districtCards');
+ const section=document.getElementById('districts');
+ if(!grid||!section)return;
+ const trigger=document.createElement('button');trigger.type='button';trigger.className='ltf-district-trigger';trigger.textContent='☰ Districts';trigger.setAttribute('aria-label','Open district list');trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-controls','ltfDistrictDrawer');
+ const backdrop=document.createElement('div');backdrop.className='ltf-district-backdrop';backdrop.setAttribute('aria-hidden','true');
+ const drawer=document.createElement('aside');drawer.className='ltf-district-drawer';drawer.id='ltfDistrictDrawer';drawer.setAttribute('aria-label','Choose a district');drawer.setAttribute('aria-hidden','true');drawer.inert=true;
+ const head=document.createElement('div');head.className='ltf-district-head';
+ const heading=document.createElement('strong');heading.textContent='📍 Explore 25 Districts';
+ const close=document.createElement('button');close.type='button';close.className='ltf-district-close';close.textContent='✕ Close';close.setAttribute('aria-label','Close district list');
+ head.append(heading,close);
+ const list=document.createElement('div');list.className='ltf-district-list';list.appendChild(grid);drawer.append(head,list);
+ document.body.append(trigger,backdrop,drawer);
+ const sectionButton=document.createElement('button');sectionButton.type='button';sectionButton.className='btn';sectionButton.textContent='☰ Browse all 25 districts';sectionButton.style.cssText='cursor:pointer;';section.querySelector('.wrap').appendChild(sectionButton);
+ let priorFocus=null;
+ function open(){priorFocus=document.activeElement;document.documentElement.classList.add('ltf-district-open');drawer.inert=false;drawer.setAttribute('aria-hidden','false');trigger.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';close.focus();}
+ function shut(){document.documentElement.classList.remove('ltf-district-open');drawer.inert=true;drawer.setAttribute('aria-hidden','true');trigger.setAttribute('aria-expanded','false');document.body.style.overflow='';if(priorFocus&&priorFocus.isConnected)priorFocus.focus();}
+ trigger.addEventListener('click',open);sectionButton.addEventListener('click',open);close.addEventListener('click',shut);backdrop.addEventListener('click',shut);
+ grid.addEventListener('click',e=>{if(e.target.closest('.district-card'))shut()});
+ document.addEventListener('keydown',e=>{if(!document.documentElement.classList.contains('ltf-district-open'))return;if(e.key==='Escape'){e.preventDefault();shut()}else if(e.key==='Tab'){const focusable=[...drawer.querySelectorAll('button:not([disabled])')];if(!focusable.length)return;const first=focusable[0],last=focusable[focusable.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
+ const language=document.getElementById('lang');function update(){const l=language?.value||'en';heading.textContent=l==='si'?'📍 දිස්ත්‍රික්ක 25':l==='ta'?'📍 25 மாவட்டங்கள்':'📍 Explore 25 Districts';trigger.textContent=l==='si'?'☰ දිස්ත්‍රික්ක':l==='ta'?'☰ மாவட்டங்கள்':'☰ Districts';sectionButton.textContent=trigger.textContent;close.textContent=l==='si'?'✕ වසන්න':l==='ta'?'✕ மூடு':'✕ Close'}language?.addEventListener('change',update);update();
+})();
+</script>
+
+<style id="v226-business-drawer-style">
+#directory.v226-in-drawer{display:block!important;background:transparent!important;padding:0!important;margin:0!important;min-height:0!important}
+#directory.v226-in-drawer>.wrap{width:100%;max-width:none;padding:12px 16px 26px;margin:0}
+#directory.v226-in-drawer .v13-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:14px}
+#directory.v226-in-drawer .v13-controls{display:flex;flex-wrap:wrap;gap:8px}
+#directory.v226-in-drawer .v13-controls>*{flex:1 1 145px;min-width:0}
+#v226-business-trigger{position:fixed;right:14px;top:45%;z-index:990;border:1px solid #69b5a4;border-radius:12px 0 0 12px;padding:13px 12px;background:#087e73;color:white;box-shadow:0 5px 22px #0003;cursor:pointer;font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg)}
+#v226-business-drawer{position:fixed;inset:0 0 0 auto;width:min(720px,94vw);height:100dvh;z-index:1500;overflow-y:auto;overscroll-behavior:contain;background:#f2faf7;color:#133e3d;box-shadow:-15px 0 45px #0004;transform:translateX(110%);transition:transform .24s ease;visibility:hidden}
+#v226-business-drawer.v226-open{transform:translateX(0);visibility:visible}
+#v226-drawer-head{position:sticky;top:0;z-index:2;background:#e0f1eb;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #bdd8ce}
+#v226-drawer-head button{background:#087e73;color:white;border:0;border-radius:9px;padding:8px 12px;cursor:pointer}
+#v226-backdrop{position:fixed;inset:0;z-index:1499;background:#061b1ca8;display:none}
+#v226-backdrop.v226-open{display:block}
+body.v226-drawer-open{overflow:hidden}
+body.dark #v226-business-drawer,body[data-theme="dark"] #v226-business-drawer{background:#142c2c;color:#e5f8f4}
+body.dark #v226-drawer-head,body[data-theme="dark"] #v226-drawer-head{background:#1d4441}
+@media(max-width:600px){#v226-business-trigger{right:0;top:52%;font-size:12px;padding:10px 8px}#v226-business-drawer{width:100vw}#directory.v226-in-drawer>.wrap{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){#v226-business-drawer{transition:none}}
+</style>
+<script id="v226-business-drawer-script">
+(function(){
+function setup(){
+ const directory=document.getElementById('directory');if(!directory||document.getElementById('v226-business-drawer'))return;
+ const trigger=document.createElement('button');trigger.id='v226-business-trigger';trigger.type='button';trigger.textContent='🏨 Stays & Dining';trigger.setAttribute('aria-label','Open hotels and restaurants directory');trigger.setAttribute('aria-expanded','false');
+ const backdrop=document.createElement('div');backdrop.id='v226-backdrop';
+ const drawer=document.createElement('aside');drawer.id='v226-business-drawer';drawer.setAttribute('role','dialog');drawer.setAttribute('aria-modal','true');drawer.setAttribute('aria-label','Hotels restaurants and rooms');
+ const head=document.createElement('div');head.id='v226-drawer-head';head.innerHTML='<strong>🏨 Hotels, Restaurants & Rooms</strong>';
+ const close=document.createElement('button');close.type='button';close.textContent='✕ Close';head.append(close);drawer.append(head);
+ directory.classList.add('v226-in-drawer');drawer.append(directory);
+ document.body.append(backdrop,drawer,trigger);
+ let previousFocus=null;
+ function open(){previousFocus=document.activeElement;backdrop.classList.add('v226-open');drawer.classList.add('v226-open');document.body.classList.add('v226-drawer-open');trigger.setAttribute('aria-expanded','true');close.focus();}
+ function shut(){backdrop.classList.remove('v226-open');drawer.classList.remove('v226-open');document.body.classList.remove('v226-drawer-open');trigger.setAttribute('aria-expanded','false');(previousFocus||trigger).focus();}
+ trigger.addEventListener('click',()=>drawer.classList.contains('v226-open')?shut():open());close.addEventListener('click',shut);backdrop.addEventListener('click',shut);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&drawer.classList.contains('v226-open')&&!document.getElementById('v13-dialog')?.open)shut();});
+ document.querySelectorAll('a[href="#directory"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();open();}));
+ // Keep selected search results visible in the drawer when an existing result points to the directory.
+ const search=document.getElementById('v13-search');if(search)search.setAttribute('autocomplete','off');
+ // Hide redundant lower-page stay/dining promotional section, without deleting its content or links.
+ const stays=document.getElementById('stays');if(stays)stays.hidden=true;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup);else setup();
+})();
+</script>
+
+<style id="v227-unified-left-drawers">
+/* Keep both quick-access drawers on the left, compact and aligned. */
+.ltf-district-trigger,#v226-business-trigger{position:fixed!important;left:0!important;right:auto!important;transform:none!important;writing-mode:vertical-rl!important;rotate:none!important;width:34px!important;min-height:118px!important;max-height:165px!important;display:flex!important;align-items:center;justify-content:center;text-align:center;padding:10px 6px!important;border-radius:0 11px 11px 0!important;box-shadow:3px 5px 15px #001d1c38!important;font-size:12px!important;line-height:1.25!important;letter-spacing:0!important;}
+.ltf-district-trigger{top:35%!important;z-index:1090!important}
+#v226-business-trigger{top:calc(35% + 134px)!important;z-index:1090!important;background:#087e73!important;border:1px solid #69b5a4!important}
+#v226-business-drawer{inset:0 auto 0 0!important;left:0!important;right:auto!important;width:min(720px,94vw)!important;transform:translateX(-110%)!important;box-shadow:15px 0 45px #0004!important}
+#v226-business-drawer.v226-open{transform:translateX(0)!important}
+#v226-drawer-head{gap:10px}
+#v226-drawer-head strong{font-size:clamp(.85rem,2vw,1.1rem)}
+html[data-theme="dark"] #v226-business-drawer,body.dark #v226-business-drawer{background:#142c2c;color:#e5f8f4}
+html[data-theme="dark"] #v226-drawer-head,body.dark #v226-drawer-head{background:#1d4441;color:#e5f8f4}
+@media(max-width:600px){.ltf-district-trigger,#v226-business-trigger{top:auto!important;bottom:100px!important;min-height:0!important;max-height:none!important;height:37px!important;width:auto!important;writing-mode:horizontal-tb!important;padding:7px 9px!important;font-size:11px!important}.ltf-district-trigger{left:0!important}#v226-business-trigger{left:88px!important;border-radius:10px!important}#v226-business-drawer{width:100vw!important}}
+</style>
+<script id="v227-nav-drawer-routing">
+(function(){
+ function setup(){
+  const district=document.querySelector('.ltf-district-trigger');
+  const business=document.getElementById('v226-business-trigger');
+  if(!district||!business)return;
+  const districtDrawer=document.getElementById('ltfDistrictDrawer');
+  const businessDrawer=document.getElementById('v226-business-drawer');
+  const businessClose=businessDrawer?.querySelector('#v226-drawer-head button');
+  const districtClose=districtDrawer?.querySelector('.ltf-district-close');
+  // Route both top menu options to the left-side panels, not the long page sections.
+  document.addEventListener('click',function(e){
+   const link=e.target.closest('a[href]');if(!link)return;
+   const href=link.getAttribute('href');
+   if(href==='#districts'){
+    e.preventDefault();e.stopImmediatePropagation();
+    if(businessDrawer?.classList.contains('v226-open'))businessClose?.click();
+    if(!document.documentElement.classList.contains('ltf-district-open'))district.click();
+   }else if(href==='#directory'||href==='#stays'){
+    e.preventDefault();e.stopImmediatePropagation();
+    if(document.documentElement.classList.contains('ltf-district-open'))districtClose?.click();
+    if(!businessDrawer?.classList.contains('v226-open'))business.click();
+   }
+  },true);
+  // Keep one panel open at a time, even when opening from the side tabs.
+  district.addEventListener('click',()=>{if(businessDrawer?.classList.contains('v226-open'))businessClose?.click()},true);
+  business.addEventListener('click',()=>{if(document.documentElement.classList.contains('ltf-district-open'))districtClose?.click()},true);
+  // Ensure users can close the business panel with the keyboard.
+  businessDrawer?.setAttribute('aria-modal','true');
+  districtDrawer?.setAttribute('role','dialog');
+  districtDrawer?.setAttribute('aria-modal','true');
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setup);else setup();
+})();
+</script>
+
+<style id="v228-owner-tools-css">
+/* Visitor-facing destinations stay intact; site checklist is publicly accessible. */
+#photoAudit{display:none!important}
+#v228-owner-tab{position:fixed;left:0;top:calc(35% + 130px);z-index:1092;background:#7354a5;color:white;border:0;border-radius:0 11px 11px 0;padding:12px 7px;writing-mode:vertical-rl;font-weight:800;cursor:pointer;box-shadow:3px 5px 15px #001d1c38}
+#v228-owner-panel{position:fixed;inset:0 auto 0 0;width:min(440px,95vw);z-index:1201;transform:translateX(-110%);transition:transform .22s ease;overflow:auto;padding:22px;background:#f5faf8;color:#153b3c;box-shadow:12px 0 45px #0004}
+#v228-owner-panel.open{transform:translateX(0)}
+#v228-owner-shade{display:none;position:fixed;inset:0;background:#0009;z-index:1200}#v228-owner-shade.open{display:block}
+#v228-owner-panel h2{font-size:1.35rem;margin:0 0 8px}#v228-owner-panel h3{font-size:1rem;margin:20px 0 8px}
+#v228-owner-panel .v228-stat{padding:12px;border-radius:12px;background:#e4f1eb;margin:10px 0}
+#v228-owner-panel button{cursor:pointer;margin:5px 5px 5px 0;padding:10px 12px;border-radius:9px;border:1px solid #9cbfb7;background:#fff;color:#124c4a;font-weight:700}
+#v228-owner-panel .v228-primary{background:#0c8074;color:white;border-color:#0c8074}
+#v228-owner-panel textarea{width:100%;min-height:155px;padding:10px;resize:vertical;border-radius:9px;border:1px solid #9cbfb7;background:white;color:#123}
+#v228-owner-panel p,#v228-owner-panel small{line-height:1.5;color:#486563}
+html[data-theme="dark"] #v228-owner-panel{background:#152c30;color:#f0faf8}html[data-theme="dark"] #v228-owner-panel .v228-stat{background:#24484b}html[data-theme="dark"] #v228-owner-panel p,html[data-theme="dark"] #v228-owner-panel small{color:#d1e5e1}
+@media(max-width:600px){#v228-owner-tab{top:auto;bottom:148px;writing-mode:horizontal-tb;padding:9px 11px;border-radius:0 10px 10px 0}}
+@media(prefers-reduced-motion:reduce){#v228-owner-panel{transition:none}}
+</style>
+<script id="v228-owner-tools-js">
+(function(){
+function init(){
+ // A URL switch is a convenience, NOT authentication. No private information is stored here.
+ const audit=document.getElementById('photoAudit');
+ // Site tools is always visible. This is a public diagnostic panel, not secure administration.
+ const tab=document.createElement('button');tab.id='v228-owner-tab';tab.type='button';tab.textContent='✎ Site tools';tab.setAttribute('aria-label','Open site editing checklist');
+ const shade=document.createElement('div');shade.id='v228-owner-shade';
+ const panel=document.createElement('aside');panel.id='v228-owner-panel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-label','Site photo and listing checklist');
+ panel.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><h2>✎ Site tools</h2><button id="v228-close" type="button">✕ Close</button></div><p>Public site review checklist. No private information or editing privileges are provided.</p><div id="v228-stats" class="v228-stat" aria-live="polite">Checking visible listings…</div><button class="v228-primary" id="v228-refresh" type="button">↻ Refresh checklist</button><h3>📸 Destination photo audit</h3><div id="v228-audit-slot"></div><h3>📋 Places without confirmed photos</h3><p>Scroll through destination cards to load more photo checks. Pending checks are not counted as missing.</p><button id="v228-copy" type="button">Copy missing names</button><textarea id="v228-missing" readonly aria-label="Missing destination photos list"></textarea><h3>🏨 Business photo checklist</h3><p>Business photos must match the actual property and have permission for reuse. Placeholder cards require manual review.</p><button id="v228-business-copy" type="button">Copy business review list</button><textarea id="v228-business" readonly aria-label="Business listings requiring photo review"></textarea><h3>⚠️ Other checks</h3><div id="v228-issues"></div><small>This panel only helps you review and copy issues. It does not upload photos or edit GitHub automatically. This public panel is not an authenticated admin area.</small>`;
+ document.body.append(tab,shade,panel);
+ const $=id=>document.getElementById(id);
+ if(audit){audit.style.setProperty('display','block','important');$('v228-audit-slot').append(audit);audit.removeAttribute('aria-hidden')}
+ function refresh(){
+  const cards=[...document.querySelectorAll('#cards .card')];
+  const missing=[...document.querySelectorAll('#cards .card')].filter(c=>!c.querySelector('img[src]'));
+  const visibleBusiness=[...document.querySelectorAll('.v13-card')];
+  const noBusinessPhoto=visibleBusiness.filter(c=>!c.querySelector('img[src]'));
+  const names=missing.map(c=>(c.querySelector('h3,h4,strong')?.textContent||c.textContent||'Unknown').trim().slice(0,100));
+  $('v228-missing').value=names.length?names.join('\n'):'No visible destination cards conclusively identified without a photo. Use the existing audit above for checked missing places.';
+  $('v228-business').value=noBusinessPhoto.map(c=>(c.querySelector('h3,h4,strong')?.textContent||c.textContent||'Unknown business').trim().slice(0,100)).join('\n')||'No visible business cards requiring review. Open the business directory and refresh.';
+  $('v228-stats').textContent=`Currently rendered: ${cards.length} destination cards · ${visibleBusiness.length} business cards. Visible photo placeholders: ${missing.length} destinations · ${noBusinessPhoto.length} businesses. These are display checks, not verified photo counts.`;
+  $('v228-issues').textContent='Check: missing images, broken image URLs, wrong-location photos, attribution/license, business contact details, mobile layout, and map links. Do not assume a photo is verified just because it loads.';
+ }
+ const open=()=>{document.querySelector('.ltf-district-close')?.click?.();document.querySelector('#v226-drawer-head button')?.click?.();panel.classList.add('open');shade.classList.add('open');document.body.style.overflow='hidden';refresh();$('v228-close').focus()};
+ const close=()=>{panel.classList.remove('open');shade.classList.remove('open');document.body.style.overflow='';tab.focus()};
+ tab.addEventListener('click',open);$('v228-close').addEventListener('click',close);shade.addEventListener('click',close);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel.classList.contains('open'))close()});
+ $('v228-refresh').addEventListener('click',refresh);
+ function copy(id){const v=$(id).value;navigator.clipboard?.writeText(v).then(()=>alert('Copied!')).catch(()=>{ $(id).select();document.execCommand('copy')})}
+ $('v228-copy').addEventListener('click',()=>copy('v228-missing'));
+ $('v228-business-copy').addEventListener('click',()=>copy('v228-business'));
+ refresh();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
+
+<!-- V23.1: align all three left-edge quick access tabs without overlap -->
+<style id="v231-left-tab-alignment">
+@media (min-width:601px){
+ .ltf-district-trigger,#v226-business-trigger,#v228-owner-tab{
+  box-sizing:border-box!important;position:fixed!important;left:0!important;right:auto!important;
+  width:36px!important;height:108px!important;min-height:108px!important;max-height:108px!important;
+  padding:8px 5px!important;writing-mode:vertical-rl!important;transform:none!important;rotate:none!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  font-size:11px!important;line-height:1.15!important;border-radius:0 10px 10px 0!important;
+ }
+ .ltf-district-trigger{top:calc(27% + 0px)!important;}
+ #v226-business-trigger{top:calc(27% + 116px)!important;}
+ #v228-owner-tab{top:calc(27% + 232px)!important;z-index:1092!important;}
+}
+@media (max-width:600px){
+ #v228-owner-tab{top:auto!important;bottom:145px!important;left:0!important;right:auto!important;
+  writing-mode:horizontal-tb!important;width:auto!important;height:36px!important;
+  padding:8px 12px!important;border-radius:0 10px 10px 0!important;z-index:1092!important;}
+}
+</style>
+
+<style id="v233-sidebar-visibility-fix">
+/* Prevent floating controls from covering an open drawer. */
+body.ltf-any-drawer-open .ltf-district-trigger,
+body.ltf-any-drawer-open #v226-business-trigger,
+body.ltf-any-drawer-open #v228-owner-tab{visibility:hidden!important;pointer-events:none!important}
+#v226-business-drawer{max-height:100dvh!important;overflow-y:auto!important}
+#v226-business-drawer .v13-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))!important}
+@media(max-width:600px){#v226-business-drawer{width:100vw!important;max-width:100vw!important}}
+</style>
+<script id="v233-sidebar-visibility-js">
+(()=>{
+ const sync=()=>{
+  const active=!!document.querySelector('#v226-business-drawer.v226-open,#v228-owner-panel.open,.ltf-district-panel.open,.ltf-district-drawer.open,[id*="district"][aria-hidden="false"].open');
+  document.body.classList.toggle('ltf-any-drawer-open',active);
+ };
+ new MutationObserver(sync).observe(document.body,{attributes:true,subtree:true,attributeFilter:['class','aria-hidden']});
+ sync();
+})();
+</script>
+</body></html>
